@@ -1,340 +1,307 @@
-﻿using System;
-using System.Collections;
+﻿using LightBulbsModule;
+using UnityEngine;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using UnityEngine;
-using KModkit;
+using System.Collections;
+using System.Text.RegularExpressions;
+
+using Color = LightBulbsModule.Color;
+using rnd = UnityEngine.Random;
 
 public class LightBulbsScript : MonoBehaviour
 {
-	
+	public KMBombModule Module;
 	public KMAudio Audio;
-    public KMBombInfo Bomb;
-    public KMBombModule Module;
-	
-	public AudioClip[] SFX;
-	
-	public KMSelectable ButtonOne;
-	public KMSelectable ButtonTwo;
-	public KMSelectable ButtonThree;
-	public KMSelectable Submit;
-	
-	public Material[] ColorBlocks;
-	public Material[] CenterColors;
-	public Material[] BlessedMaterial;
-	public Renderer[] LED;
-	
-	public TextMesh QDiamond;
-	public TextMesh[] QDiamondDays;
-	
-	public GameObject[] CirclesAndPluses;
-	
-	private int[] Inspector = {0, 0, 0};
-	private int[] Determination = {0, 0, 0};
-	private int[] TheComparison = {0, 0, 0};
-	
-	private bool Playable = false;
-	
-	//Logging
-    static int moduleIdCounter = 1;
-    int moduleId;
-    private bool ModuleSolved;
-	
-	void Awake()
+	public KMBombInfo Info;
+
+	public Mesh[] ButtonMeshes;
+	public MeshFilter[] ButtonMeshFilters;
+	public MeshRenderer[] BulbRenderer;
+	public KMSelectable[] Buttons;
+
+	public AudioClip[] Sfx;
+	public TextMesh[] ButtonTexts;
+	public Material[] BulbMaterials;
+	public Material[] MiddleBulbMaterials;
+	public Material DefaultMaterial;
+
+	private List<Bulb> Bulbs = new List<Bulb>();
+
+	private readonly string[][] Table = new string[][]
 	{
-		moduleId = moduleIdCounter++;
-		ButtonOne.OnInteract += delegate () { PressButtonOne(); return false; };
-		ButtonTwo.OnInteract += delegate () { PressButtonTwo(); return false; };
-		ButtonThree.OnInteract += delegate () { PressButtonThree(); return false; };
-		Submit.OnInteract += delegate () { PressSubmit(); return false; };
-		
-	}
-	
+		new[]{"000", "00-", "0--", "00-", "000", "-0-", "000", "00-"},
+		new[]{"-00", "-0-", "0-0", "-0-", "-00", "000", "000", "0-0"},
+		new[]{"-0-", "0--", "---", "0--", "-00", "0--", "00-", "-00"},
+		new[]{"--0", "-00", "---", "-00", "0--", "-00", "0--", "0-0"},
+		new[]{"0-0", "00-", "000", "0--", "---", "0-0",  "0-0", "--0"},
+		new[]{"---", "--0", "---", "-00", "0--", "-0-", "000", "--0"},
+		new[]{"---", "-0-", "00-", "00-", "0-0", "--0", "--0", "0-0"},
+		new[]{"---", "--0", "000", "-0-", "--0", "---", "-0-", "00-"}
+	};
+
+	private bool[] ButtonStates = new bool[] { false, false, false };
+
+	private static int _moduleIdCounter = 1;
+	private int _moduleId = 0;
+	private bool isSolved = false;
+	private bool interactable = true;
+
+	private List<char> CorrectAnswer = new List<char>();
+	private readonly static Regex TwitchPlaysRegex = new Regex("^submit ([o-][o-][o-])$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+
+	// Use this for initialization
 	void Start()
 	{
-		BulbColor();
-		Gnome();
-		Playable = true;
+		_moduleId = _moduleIdCounter++;
+		Init();
+		Module.OnActivate += Activate;		
 	}
-	
-	void BulbColor()
+
+	private void Init()
 	{
-		Inspector[0] = UnityEngine.Random.Range(0, ColorBlocks.Count());
-		Inspector[1] = UnityEngine.Random.Range(0, CenterColors.Count());
-		Inspector[2] = UnityEngine.Random.Range(0, ColorBlocks.Count());
-		CirclesAndPluses[0].SetActive(false);
-		CirclesAndPluses[2].SetActive(false);
-		CirclesAndPluses[4].SetActive(false);
+		InitBulbs();
+		CorrectAnswer = GetCorrectAnswer();
+		Debug.LogFormat("[Light Bulbs #{0}] The bulbs are: {1}", _moduleId, string.Join(", ", Bulbs.Select(x => x.Color.ToString()).ToArray()));
+		Debug.LogFormat("[Light Bulbs #{0}] Solution is: {1}", _moduleId, string.Join("", CorrectAnswer.Select(x => x.ToString()).ToArray()));
 	}
-	
-	void Gnome()
+
+	private void Reset()
 	{
-		if ((Inspector[0] == 0 && Inspector[1] == 0 && Inspector[2] == 0) || (Inspector[0] == 7 && Inspector[1] == 0 && Inspector[2] == 2) || (Inspector[0] == 4 && Inspector[1] == 0 && Inspector[2] == 2) || (Inspector[0] == 0 && Inspector[1] == 0 && Inspector[2] == 4) || (Inspector[0] == 1 && Inspector[1] == 0 && Inspector[2] == 6) || (Inspector[0] == 0 && Inspector[1] == 0 && Inspector[2] == 6) || (Inspector[0] == 5 && Inspector[1] == 0 && Inspector[2] == 6) || (Inspector[0] == 1 && Inspector[1] == 0 && Inspector[2] == 5) || (Inspector[0] == 7 && Inspector[1] == 1 && Inspector[2] == 0) || (Inspector[0] == 3 && Inspector[1] == 1 && Inspector[2] == 2) || (Inspector[0] == 5 && Inspector[1] == 1 && Inspector[2] == 2) || (Inspector[0] == 7 && Inspector[1] == 1 && Inspector[2] == 5) || (Inspector[0] == 4 && Inspector[1] == 1 && Inspector[2] == 4) || (Inspector[0] == 5 && Inspector[1] == 1 && Inspector[2] == 0) || (Inspector[0] == 6 && Inspector[1] == 1 && Inspector[2] == 0) || (Inspector[0] == 2 && Inspector[1] == 1 && Inspector[2] == 2))
+		ButtonStates = new bool[3] { false, false, false };
+		Bulbs = new List<Bulb>();
+		for(int i = 0; i < 3; ++i)
 		{
-			TheComparison[0] = 0;
-			TheComparison[1] = 0;
-			TheComparison[2] = 0;
+			ButtonMeshFilters[i].mesh = null;
+			ButtonTexts[i].text = "";
+			ButtonMeshFilters[i].mesh = ButtonMeshes[0];
+			BulbRenderer[i].material = DefaultMaterial;
 		}
-		
-		else if ((Inspector[0] == 2 && Inspector[1] == 0 && Inspector[2] == 6) || (Inspector[0] == 4 && Inspector[1] == 0 && Inspector[2] == 1) || (Inspector[0] == 6 && Inspector[1] == 0 && Inspector[2] == 2) || (Inspector[0] == 6 && Inspector[1] == 0 && Inspector[2] == 3) || (Inspector[0] == 0 && Inspector[1] == 0 && Inspector[2] == 1) || (Inspector[0] == 7 && Inspector[1] == 0 && Inspector[2] == 7) || (Inspector[0] == 0 && Inspector[1] == 0 && Inspector[2] == 7) || (Inspector[0] == 0 && Inspector[1] == 0 && Inspector[2] == 3) || (Inspector[0] == 4 && Inspector[1] == 1 && Inspector[2] == 7) || (Inspector[0] == 7 && Inspector[1] == 1 && Inspector[2] == 4) || (Inspector[0] == 7 && Inspector[1] == 1 && Inspector[2] == 1) || (Inspector[0] == 5 && Inspector[1] == 1 && Inspector[2] == 7) || (Inspector[0] == 3 && Inspector[1] == 1 && Inspector[2] == 0) || (Inspector[0] == 5 && Inspector[1] == 1 && Inspector[2] == 1) || (Inspector[0] == 6 && Inspector[1] == 1 && Inspector[2] == 6) || (Inspector[0] == 6 && Inspector[1] == 1 && Inspector[2] == 5))
+		Init();
+	}
+
+	void Activate()
+	{
+		for (int i = 0; i < 4; ++i)
 		{
-			TheComparison[0] = 0;
-			TheComparison[1] = 0;
-			TheComparison[2] = 1;
-		}
-		
-		else if ((Inspector[0] == 6 && Inspector[1] == 0 && Inspector[2] == 4) || (Inspector[0] == 1 && Inspector[1] == 0 && Inspector[2] == 7) || (Inspector[0] == 4 && Inspector[1] == 0 && Inspector[2] == 6) || (Inspector[0] == 3 && Inspector[1] == 0 && Inspector[2] == 7) || (Inspector[0] == 1 && Inspector[1] == 0 && Inspector[2] == 2) || (Inspector[0] == 4 && Inspector[1] == 0 && Inspector[2] == 5) || (Inspector[0] == 4 && Inspector[1] == 0 && Inspector[2] == 0) || (Inspector[0] == 6 && Inspector[1] == 0 && Inspector[2] == 7) || (Inspector[0] == 7 && Inspector[1] == 1 && Inspector[2] == 6) || (Inspector[0] == 1 && Inspector[1] == 1 && Inspector[2] == 1) || (Inspector[0] == 2 && Inspector[1] == 1 && Inspector[2] == 0) || (Inspector[0] == 6 && Inspector[1] == 1 && Inspector[2] == 1) || (Inspector[0] == 0 && Inspector[1] == 1 && Inspector[2] == 5) || (Inspector[0] == 5 && Inspector[1] == 1 && Inspector[2] == 5) || (Inspector[0] == 1 && Inspector[1] == 1 && Inspector[2] == 3) || (Inspector[0] == 7 && Inspector[1] == 1 && Inspector[2] == 3))
-		{
-			TheComparison[0] = 0;
-			TheComparison[1] = 1;
-			TheComparison[2] = 0;
-		}
-		
-		else if ((Inspector[0] == 4 && Inspector[1] == 0 && Inspector[2] == 3) || (Inspector[0] == 2 && Inspector[1] == 0 && Inspector[2] == 3) || (Inspector[0] == 0 && Inspector[1] == 0 && Inspector[2] == 2) || (Inspector[0] == 2 && Inspector[1] == 0 && Inspector[2] == 5) || (Inspector[0] == 2 && Inspector[1] == 0 && Inspector[2] == 1) || (Inspector[0] == 3 && Inspector[1] == 0 && Inspector[2] == 6) || (Inspector[0] == 3 && Inspector[1] == 0 && Inspector[2] == 4) || (Inspector[0] == 5 && Inspector[1] == 0 && Inspector[2] == 4) || (Inspector[0] == 5 && Inspector[1] == 1 && Inspector[2] == 3) || (Inspector[0] == 3 && Inspector[1] == 1 && Inspector[2] == 3) || (Inspector[0] == 3 && Inspector[1] == 1 && Inspector[2] == 1) || (Inspector[0] == 3 && Inspector[1] == 1 && Inspector[2] == 5) || (Inspector[0] == 1 && Inspector[1] == 1 && Inspector[2] == 4) || (Inspector[0] == 1 && Inspector[1] == 1 && Inspector[2] == 0) || (Inspector[0] == 2 && Inspector[1] == 1 && Inspector[2] == 4) || (Inspector[0] == 2 && Inspector[1] == 1 && Inspector[2] == 7))
-		{
-			TheComparison[0] = 0;
-			TheComparison[1] = 1;
-			TheComparison[2] = 1;
-		}
-		
-		else if ((Inspector[0] == 5 && Inspector[1] == 0 && Inspector[2] == 3) || (Inspector[0] == 3 && Inspector[1] == 0 && Inspector[2] == 3) || (Inspector[0] == 3 && Inspector[1] == 0 && Inspector[2] == 1) || (Inspector[0] == 3 && Inspector[1] == 0 && Inspector[2] == 5) || (Inspector[0] == 1 && Inspector[1] == 0 && Inspector[2] == 4) || (Inspector[0] == 1 && Inspector[1] == 0 && Inspector[2] == 0) || (Inspector[0] == 2 && Inspector[1] == 0 && Inspector[2] == 4) || (Inspector[0] == 2 && Inspector[1] == 0 && Inspector[2] == 7) || (Inspector[0] == 4 && Inspector[1] == 1 && Inspector[2] == 3) || (Inspector[0] == 2 && Inspector[1] == 1 && Inspector[2] == 3) || (Inspector[0] == 0 && Inspector[1] == 1 && Inspector[2] == 2) || (Inspector[0] == 2 && Inspector[1] == 1 && Inspector[2] == 5) || (Inspector[0] == 2 && Inspector[1] == 1 && Inspector[2] == 1) || (Inspector[0] == 3 && Inspector[1] == 1 && Inspector[2] == 6) || (Inspector[0] == 3 && Inspector[1] == 1 && Inspector[2] == 4) || (Inspector[0] == 5 && Inspector[1] == 1 && Inspector[2] == 4))
-		{
-			TheComparison[0] = 1;
-			TheComparison[1] = 0;
-			TheComparison[2] = 0;
-		}
-		
-		else if ((Inspector[0] == 7 && Inspector[1] == 0 && Inspector[2] == 6) || (Inspector[0] == 1 && Inspector[1] == 0 && Inspector[2] == 1) || (Inspector[0] == 2 && Inspector[1] == 0 && Inspector[2] == 0) || (Inspector[0] == 6 && Inspector[1] == 0 && Inspector[2] == 1) || (Inspector[0] == 0 && Inspector[1] == 0 && Inspector[2] == 5) || (Inspector[0] == 5 && Inspector[1] == 0 && Inspector[2] == 5) || (Inspector[0] == 1 && Inspector[1] == 0 && Inspector[2] == 3) || (Inspector[0] == 7 && Inspector[1] == 0 && Inspector[2] == 3) || (Inspector[0] == 6 && Inspector[1] == 1 && Inspector[2] == 4) || (Inspector[0] == 1 && Inspector[1] == 1 && Inspector[2] == 7) || (Inspector[0] == 4 && Inspector[1] == 1 && Inspector[2] == 6) || (Inspector[0] == 3 && Inspector[1] == 1 && Inspector[2] == 7) || (Inspector[0] == 1 && Inspector[1] == 1 && Inspector[2] == 2) || (Inspector[0] == 4 && Inspector[1] == 1 && Inspector[2] == 5) || (Inspector[0] == 4 && Inspector[1] == 1 && Inspector[2] == 0) || (Inspector[0] == 6 && Inspector[1] == 1 && Inspector[2] == 7))
-		{
-			TheComparison[0] = 1;
-			TheComparison[1] = 0;
-			TheComparison[2] = 1;
-		}
-		
-		else if ((Inspector[0] == 4 && Inspector[1] == 0 && Inspector[2] == 7) || (Inspector[0] == 7 && Inspector[1] == 0 && Inspector[2] == 4) || (Inspector[0] == 7 && Inspector[1] == 0 && Inspector[2] == 1) || (Inspector[0] == 5 && Inspector[1] == 0 && Inspector[2] == 7) || (Inspector[0] == 3 && Inspector[1] == 0 && Inspector[2] == 0) || (Inspector[0] == 5 && Inspector[1] == 0 && Inspector[2] == 1) || (Inspector[0] == 6 && Inspector[1] == 0 && Inspector[2] == 6) || (Inspector[0] == 6 && Inspector[1] == 0 && Inspector[2] == 5) || (Inspector[0] == 2 && Inspector[1] == 1 && Inspector[2] == 6) || (Inspector[0] == 4 && Inspector[1] == 1 && Inspector[2] == 1) || (Inspector[0] == 6 && Inspector[1] == 1 && Inspector[2] == 2) || (Inspector[0] == 6 && Inspector[1] == 1 && Inspector[2] == 3) || (Inspector[0] == 0 && Inspector[1] == 1 && Inspector[2] == 1) || (Inspector[0] == 7 && Inspector[1] == 1 && Inspector[2] == 7) || (Inspector[0] == 0 && Inspector[1] == 1 && Inspector[2] == 7) || (Inspector[0] == 0 && Inspector[1] == 1 && Inspector[2] == 3))
-		{
-			TheComparison[0] = 1;
-			TheComparison[1] = 1;
-			TheComparison[2] = 0;
-		}
-		
-		else if ((Inspector[0] == 7 && Inspector[1] == 0 && Inspector[2] == 0) || (Inspector[0] == 3 && Inspector[1] == 0 && Inspector[2] == 2) || (Inspector[0] == 5 && Inspector[1] == 0 && Inspector[2] == 2) || (Inspector[0] == 7 && Inspector[1] == 0 && Inspector[2] == 5) || (Inspector[0] == 4 && Inspector[1] == 0 && Inspector[2] == 4) || (Inspector[0] == 5 && Inspector[1] == 0 && Inspector[2] == 0) || (Inspector[0] == 6 && Inspector[1] == 0 && Inspector[2] == 0) || (Inspector[0] == 2 && Inspector[1] == 0 && Inspector[2] == 2) || (Inspector[0] == 0 && Inspector[1] == 1 && Inspector[2] == 0) || (Inspector[0] == 7 && Inspector[1] == 1 && Inspector[2] == 2) || (Inspector[0] == 4 && Inspector[1] == 1 && Inspector[2] == 2) || (Inspector[0] == 0 && Inspector[1] == 1 && Inspector[2] == 4) || (Inspector[0] == 1 && Inspector[1] == 1 && Inspector[2] == 6) || (Inspector[0] == 0 && Inspector[1] == 1 && Inspector[2] == 6) || (Inspector[0] == 5 && Inspector[1] == 1 && Inspector[2] == 6) || (Inspector[0] == 1 && Inspector[1] == 1 && Inspector[2] == 5))
-		{
-			TheComparison[0] = 1;
-			TheComparison[1] = 1;
-			TheComparison[2] = 1;
+			int index = i;
+			Buttons[index].OnInteract += delegate
+			{
+				if (!interactable || isSolved)
+				{
+					return false;
+				}
+				HandlePress(index);
+				return false;
+			};
 		}
 	}
-	
-	void TheTrueColor()
+
+	private void HandlePress(int index)
 	{
-		if (Determination[0] == 0)
+		Buttons[index].AddInteractionPunch(.2f);
+		if (index == 3)
 		{
-			LED[0].material = BlessedMaterial[0];
+			Audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.BigButtonPress, transform);			
+			CheckAnswer();
 		}
-		
-		else if (Determination[0] == 1)
+		else
 		{
-			LED[0].material = ColorBlocks[Inspector[0]];
-		}
-		
-		if (Determination[1] == 0)
-		{
-			LED[1].material = BlessedMaterial[0];
-		}
-		
-		else if (Determination[1] == 1)
-		{
-			LED[1].material = CenterColors[Inspector[1]];
-		}
-		
-		if (Determination[2] == 0)
-		{
-			LED[2].material = BlessedMaterial[0];
-		}
-		
-		else if (Determination[2] == 1)
-		{
-			LED[2].material = ColorBlocks[Inspector[2]];
-		}
-	}
-	
-	void PressButtonOne()
-	{
-		ButtonOne.AddInteractionPunch(0.2f);
-		Audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.BigButtonPress, transform);
-		if (Playable == true)
-		{
-			if (Determination[0] == 0)
+			ButtonMeshFilters[index].mesh = ButtonMeshes[(!ButtonStates[index]) ? 1 : 0];
+			ButtonStates[index] = !ButtonStates[index];
+			if(index != 1)
 			{
-				Determination[0] = 1;
-				TheTrueColor();
-				CirclesAndPluses[0].SetActive(true);
-				CirclesAndPluses[1].SetActive(false);
+				BulbRenderer[index].material = ((ButtonStates[index]) ? BulbMaterials[(int)Bulbs[index].Color] : DefaultMaterial);
 			}
-			
-			else if (Determination[0] == 1)
-			{
-				Determination[0] = 0;
-				TheTrueColor();
-				CirclesAndPluses[0].SetActive(false);
-				CirclesAndPluses[1].SetActive(true);
-			}
-		}
-	}
-	
-	void PressButtonTwo()
-	{
-		Audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.BigButtonPress, transform);
-		ButtonTwo.AddInteractionPunch(0.2f);
-		if (Playable == true)
-		{
-			if (Determination[1] == 0)
-			{
-				Determination[1] = 1;
-				TheTrueColor();
-				CirclesAndPluses[2].SetActive(true);
-				CirclesAndPluses[3].SetActive(false);
-			}
-			
-			else if (Determination[1] == 1)
-			{
-				Determination[1] = 0;
-				TheTrueColor();
-				CirclesAndPluses[2].SetActive(false);
-				CirclesAndPluses[3].SetActive(true);
-			}
-		}
-	}
-	
-	void PressButtonThree()
-	{
-		Audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.BigButtonPress, transform);
-		ButtonTwo.AddInteractionPunch(0.2f);
-		if (Playable == true)
-		{
-			if (Determination[2] == 0)
-			{
-				Determination[2] = 1;
-				TheTrueColor();
-				CirclesAndPluses[4].SetActive(true);
-				CirclesAndPluses[5].SetActive(false);
-			}
-			
-			else if (Determination[2] == 1)
-			{
-				Determination[2] = 0;
-				TheTrueColor();
-				CirclesAndPluses[4].SetActive(false);
-				CirclesAndPluses[5].SetActive(true);
-			}
-		}
-	}
-	
-	void PressSubmit()
-	{
-		Audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.BigButtonPress, transform);
-		Submit.AddInteractionPunch(0.2f);
-		if (Playable == true)
-		{
-			if (Determination[0] == TheComparison[0] && Determination[1] == TheComparison[1] && Determination[2] == TheComparison[2])
-			{
-				StartCoroutine(FlickerVictory());
-				Playable = false;
-				
-			}
-			
 			else
 			{
-				StartCoroutine(FlickerFail());
-				Playable = false;
+				BulbRenderer[1].material = ((ButtonStates[index]) ? MiddleBulbMaterials[(int)Bulbs[1].Color - 8] : DefaultMaterial);
 			}
+
+
+			Audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.BigButtonPress, transform);
 		}
 	}
-	
-	IEnumerator FlickerFail()
+	private Color GetColor(int color)
 	{
-		QDiamond.text = "";
-		LED[0].material = BlessedMaterial[0];
-		LED[1].material = BlessedMaterial[0];
-		LED[2].material = BlessedMaterial[0];
-		CirclesAndPluses[0].SetActive(false);
-		CirclesAndPluses[1].SetActive(false);
-		CirclesAndPluses[2].SetActive(false);
-		CirclesAndPluses[3].SetActive(false);
-		CirclesAndPluses[4].SetActive(false);
-		CirclesAndPluses[5].SetActive(false);
-		yield return new WaitForSecondsRealtime(1f);
-		LED[0].material = BlessedMaterial[1];
-		Audio.PlaySoundAtTransform(SFX[1].name, transform);
-		yield return new WaitForSecondsRealtime(1f);
-		LED[1].material = BlessedMaterial[1];
-		Audio.PlaySoundAtTransform(SFX[1].name, transform);
-		yield return new WaitForSecondsRealtime(1f);
-		LED[2].material = BlessedMaterial[1];
-		Audio.PlaySoundAtTransform(SFX[1].name, transform);
-		yield return new WaitForSecondsRealtime(1f);
-		LED[0].material = ColorBlocks[0];
-		LED[1].material = ColorBlocks[0];
-		LED[2].material = ColorBlocks[0];
-		QDiamondDays[0].text = "N";
-		QDiamondDays[1].text = "O";
-		QDiamondDays[2].text = "!";
-		Audio.PlaySoundAtTransform(SFX[2].name, transform);
-		yield return new WaitForSecondsRealtime(1.75f);
-		Module.HandleStrike();
-		Reset();
-		BulbColor();
-		Gnome();
-		Playable = true;
+		switch (color)
+		{
+			case 0:
+				return Color.Red;
+			case 1:
+				return Color.Orange;
+			case 2:
+				return Color.Yellow;
+			case 3:
+				return Color.Green;
+			case 4:
+				return Color.Blue;
+			case 5:
+				return Color.Purple;
+			case 6:
+				return Color.Cyan;
+			case 7:
+				return Color.Magenta;
+			default:
+				throw new InvalidOperationException("Invalid color detected, please contact the author of the mod!");
+		}
 	}
-	
-	IEnumerator FlickerVictory()
+
+	private void InitBulbs()
 	{
-		QDiamond.text = "";
-		LED[0].material = BlessedMaterial[0];
-		LED[1].material = BlessedMaterial[0];
-		LED[2].material = BlessedMaterial[0];
-		CirclesAndPluses[0].SetActive(false);
-		CirclesAndPluses[1].SetActive(false);
-		CirclesAndPluses[2].SetActive(false);
-		CirclesAndPluses[3].SetActive(false);
-		CirclesAndPluses[4].SetActive(false);
-		CirclesAndPluses[5].SetActive(false);
-		yield return new WaitForSecondsRealtime(1f);
-		LED[0].material = BlessedMaterial[1];
-		Audio.PlaySoundAtTransform(SFX[1].name, transform);
-		yield return new WaitForSecondsRealtime(1f);
-		LED[1].material = BlessedMaterial[1];
-		Audio.PlaySoundAtTransform(SFX[1].name, transform);
-		yield return new WaitForSecondsRealtime(1f);
-		LED[2].material = BlessedMaterial[1];
-		Audio.PlaySoundAtTransform(SFX[1].name, transform);
-		yield return new WaitForSecondsRealtime(1f);
-		Module.HandlePass();
-		LED[0].material = ColorBlocks[3];
-		LED[1].material = ColorBlocks[3];
-		LED[2].material = ColorBlocks[3];
-		Audio.PlaySoundAtTransform(SFX[0].name, transform);
-		QDiamondDays[0].text = "G";
-		QDiamondDays[1].text = "G";
-		QDiamondDays[2].text = "!";
+		Bulbs.Add(new Bulb { Color = GetColor(rnd.Range(0, 8)), Position = Position.Left });
+		Bulbs.Add(new Bulb { Color = (rnd.Range(0, 2) == 1) ? Color.White : Color.Gray, Position = Position.Middle });
+		Bulbs.Add(new Bulb { Color = GetColor(rnd.Range(0, 8)), Position = Position.Right });
 	}
-	
-	void Reset()
+
+	private List<char> GetCorrectAnswer()
 	{
-		LED[0].material = BlessedMaterial[0];
-		LED[1].material = BlessedMaterial[0];
-		LED[2].material = BlessedMaterial[0];
-		Determination[0] = 0;
-		Determination[1] = 0;
-		Determination[2] = 0;
-		CirclesAndPluses[1].SetActive(true);
-		CirclesAndPluses[3].SetActive(true);
-		CirclesAndPluses[5].SetActive(true);
-		QDiamond.text = "SUBMIT";
-		QDiamondDays[0].text = "";
-		QDiamondDays[1].text = "";
-		QDiamondDays[2].text = "";
+		return InvertTable(Table[(int)Bulbs[0].Color][(int)Bulbs[2].Color].ToCharArray().ToList());
+	}
+
+	private void CheckAnswer()
+	{
+		var buttonValues = ConvertButtonToValue(ButtonStates);
+		if(string.Join("", CorrectAnswer.Select(x => x.ToString()).ToArray()) == string.Join("", buttonValues.Select(x => x.ToString()).ToArray()))
+		{
+			isSolved = true;
+			StartCoroutine(SolveAnimation(true));
+			Debug.LogFormat("[Light Bulbs #{0}] You entered: {1}. That is correct, module solved.", _moduleId, string.Join("", buttonValues.Select(x => x.ToString()).ToArray()));
+		}
+		else
+		{
+			StartCoroutine(SolveAnimation(false));
+			Debug.LogFormat("[Light Bulbs #{0}] You entered: {1}. That is incorrect, expected: {2}. Strike!", _moduleId, string.Join("", buttonValues.Select(x => x.ToString()).ToArray()), string.Join("", CorrectAnswer.Select(x => x.ToString()).ToArray()));
+		}
+	}
+
+	private List<char> InvertTable(List<char> list)
+	{
+		var newList = new List<char>();
+		if (Bulbs[1].Color == Color.Gray)
+		{
+			for (int i = 0; i < 3; ++i)
+			{
+				newList.Add((list[i] == '0') ? '-' : '0');
+			}
+			return newList;
+		}
+		return list;
+	}
+
+	private List<char> ConvertButtonToValue(bool[] buttons)
+	{
+		var newList = new List<char>();
+		for(int i = 0; i < 3; ++i)
+		{
+			newList.Add((buttons[i]) ? '0' : '-');
+		}
+		return newList;
+	}
+
+	// Update is called once per frame
+	void Update () 
+	{
+		
+	}
+
+#pragma warning disable 414
+	private readonly string TwitchHelpMessage = "Submit your answer by entering !{0} submit -o-";
+#pragma warning restore 414
+
+	IEnumerator SolveAnimation(bool IsSolved)
+	{
+		interactable = false;
+		for (int i = 0; i < 3; ++i)
+		{
+			ButtonMeshFilters[i].mesh = ButtonMeshes[0];
+			BulbRenderer[i].material = DefaultMaterial;
+		}
+		yield return new WaitForSecondsRealtime(1f);
+		for(int i = 0; i < 3; ++i)
+		{
+			BulbRenderer[i].material = MiddleBulbMaterials[1];
+			Audio.PlaySoundAtTransform(Sfx[0].name, transform);
+			yield return new WaitForSecondsRealtime(1f);
+		}
+		if (IsSolved)
+		{
+			for(int i = 0; i < 3; ++i)
+			{
+				ButtonMeshFilters[i].mesh = null;
+			}
+			ButtonTexts[0].text = "G";
+			ButtonTexts[1].text = "G";
+			ButtonTexts[2].text = "!";
+			for(int i = 0; i < 3; ++i)
+			{
+				BulbRenderer[i].material = BulbMaterials[3];
+			}
+			Audio.PlaySoundAtTransform(Sfx[2].name, transform);
+			yield return new WaitForSecondsRealtime(1f);
+			Module.HandlePass();
+		}
+		else
+		{
+			for (int i = 0; i < 3; ++i)
+			{
+				ButtonMeshFilters[i].mesh = null;
+			}
+			ButtonTexts[0].text = "N";
+			ButtonTexts[1].text = "O";
+			ButtonTexts[2].text = "!";
+			for (int i = 0; i < 3; ++i)
+			{
+				BulbRenderer[i].material = BulbMaterials[0];
+			}
+			Audio.PlaySoundAtTransform(Sfx[1].name, transform);
+			yield return new WaitForSecondsRealtime(1.75f);
+			Module.HandleStrike();
+			Reset();
+			interactable = true;
+		}	
+	}
+
+	public IEnumerator ProcessTwitchCommand(string command)
+	{
+		command = command.ToLowerInvariant().Trim();
+		Match m = TwitchPlaysRegex.Match(command);
+
+		if (m.Success)
+		{
+			yield return null;
+			var input = m.Groups[1].ToString().ToCharArray();
+			for(int i = 0; i < 3; ++i)
+			{
+				if (input[i].Equals('-'))
+				{
+					if (ButtonStates[i])
+					{
+						HandlePress(i);
+						yield return new WaitForSecondsRealtime(.1f);
+					}
+				}
+				else
+				{
+					if (!ButtonStates[i])
+					{
+						HandlePress(i);
+						yield return new WaitForSecondsRealtime(.1f);
+					}
+				}				
+			}
+			HandlePress(3);
+			if (isSolved)
+			{
+				yield return "solve";
+			}
+			else
+			{
+				yield return "strike";
+			}
+			yield break;
+		}
+		yield break;
 	}
 }
