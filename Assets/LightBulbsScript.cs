@@ -206,10 +206,6 @@ public class LightBulbsScript : MonoBehaviour
 		
 	}
 
-#pragma warning disable 414
-	private readonly string TwitchHelpMessage = "Submit your answer by entering !{0} submit -o-";
-#pragma warning restore 414
-
 	IEnumerator SolveAnimation(bool IsSolved)
 	{
 		interactable = false;
@@ -263,11 +259,29 @@ public class LightBulbsScript : MonoBehaviour
 		}	
 	}
 
+#pragma warning disable 414
+	private readonly string TwitchHelpMessage = "Cycle the buls by entering: !{0} cycle | Submit your answer by entering !{0} submit -o-";
+#pragma warning restore 414
+
 	public IEnumerator ProcessTwitchCommand(string command)
 	{
 		command = command.ToLowerInvariant().Trim();
 		Match m = TwitchPlaysRegex.Match(command);
-
+		if(command.Equals("cycle", StringComparison.InvariantCultureIgnoreCase))
+		{
+			for(int i = 0; i < 3; ++i)
+			{
+				yield return new WaitForSecondsRealtime(1f);
+				HandlePress(i);
+				yield return new WaitForSecondsRealtime(1f);
+			}
+			for (int i = 0; i < 3; ++i)
+			{
+				HandlePress(i);
+				yield return new WaitForSecondsRealtime(.1f);
+			}
+			yield break;
+		}
 		if (m.Success)
 		{
 			yield return null;
