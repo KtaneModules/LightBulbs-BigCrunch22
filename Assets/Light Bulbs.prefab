@@ -3722,6 +3722,7 @@ MonoBehaviour:
   - {fileID: 102214814251197016}
   - {fileID: 102419477800845156}
   - {fileID: 102789854096548964}
+  - {fileID: 102960848457112332}
   BulbMaterials:
   - {fileID: 2100000, guid: 0b8345d6190d14013b825698a59f7759, type: 2}
   - {fileID: 2100000, guid: 87e6e2009c503428b9144a38bc9fdf3c, type: 2}

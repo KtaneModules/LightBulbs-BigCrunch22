@@ -69,6 +69,7 @@ public class LightBulbsScript : MonoBehaviour
 
 	private void Reset()
 	{
+		ButtonTexts[3].text = "SUBMIT";
 		ButtonStates = new bool[3] { false, false, false };
 		Bulbs = new List<Bulb>();
 		for(int i = 0; i < 3; ++i)
@@ -209,9 +210,10 @@ public class LightBulbsScript : MonoBehaviour
 	IEnumerator SolveAnimation(bool IsSolved)
 	{
 		interactable = false;
+		ButtonTexts[3].text = "";
 		for (int i = 0; i < 3; ++i)
 		{
-			ButtonMeshFilters[i].mesh = ButtonMeshes[0];
+			ButtonMeshFilters[i].mesh = null;
 			BulbRenderer[i].material = DefaultMaterial;
 		}
 		yield return new WaitForSecondsRealtime(1f);
@@ -235,7 +237,6 @@ public class LightBulbsScript : MonoBehaviour
 				BulbRenderer[i].material = BulbMaterials[3];
 			}
 			Audio.PlaySoundAtTransform(Sfx[2].name, transform);
-			yield return new WaitForSecondsRealtime(1f);
 			Module.HandlePass();
 		}
 		else
@@ -260,7 +261,7 @@ public class LightBulbsScript : MonoBehaviour
 	}
 
 #pragma warning disable 414
-	private readonly string TwitchHelpMessage = "Cycle the buls by entering: !{0} cycle | Submit your answer by entering !{0} submit -o-";
+	private readonly string TwitchHelpMessage = "Cycle the bulbs by entering: !{0} cycle | Submit your answer by entering !{0} submit -o-";
 #pragma warning restore 414
 
 	public IEnumerator ProcessTwitchCommand(string command)
