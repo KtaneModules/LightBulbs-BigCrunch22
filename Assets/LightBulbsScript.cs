@@ -14,6 +14,7 @@ public class LightBulbsScript : MonoBehaviour
 	public KMBombModule Module;
 	public KMAudio Audio;
 	public KMBombInfo Info;
+    public KMColorblindMode Colorblind;
 
 	public Mesh[] ButtonMeshes;
 	public MeshFilter[] ButtonMeshFilters;
@@ -22,6 +23,7 @@ public class LightBulbsScript : MonoBehaviour
 
 	public AudioClip[] Sfx;
 	public TextMesh[] ButtonTexts;
+    public TextMesh[] ColorblindTexts;
 	public Material[] BulbMaterials;
 	public Material[] MiddleBulbMaterials;
 	public Material DefaultMaterial;
@@ -46,6 +48,7 @@ public class LightBulbsScript : MonoBehaviour
 	private int _moduleId = 0;
 	private bool isSolved = false;
 	private bool interactable = true;
+    private bool colorblindActive = false;
 
 	private List<char> CorrectAnswer = new List<char>();
 	private readonly static Regex TwitchPlaysRegex = new Regex("^submit ([o-][o-][o-])$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
@@ -55,6 +58,8 @@ public class LightBulbsScript : MonoBehaviour
 	void Start()
 	{
 		_moduleId = _moduleIdCounter++;
+        if (Colorblind.ColorblindModeActive)
+            colorblindActive = true;
 		Init();
 		Module.OnActivate += Activate;		
 	}
@@ -72,7 +77,7 @@ public class LightBulbsScript : MonoBehaviour
 		ButtonTexts[3].text = "SUBMIT";
 		ButtonStates = new bool[3] { false, false, false };
 		Bulbs = new List<Bulb>();
-		for(int i = 0; i < 3; ++i)
+		for (int i = 0; i < 3; ++i)
 		{
 			ButtonMeshFilters[i].mesh = null;
 			ButtonTexts[i].text = "";
@@ -104,24 +109,38 @@ public class LightBulbsScript : MonoBehaviour
 		Buttons[index].AddInteractionPunch(.2f);
 		if (index == 3)
 		{
-			Audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.BigButtonPress, transform);			
+			Audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.BigButtonPress, Buttons[3].transform);			
 			CheckAnswer();
 		}
 		else
 		{
 			ButtonMeshFilters[index].mesh = ButtonMeshes[(!ButtonStates[index]) ? 1 : 0];
 			ButtonStates[index] = !ButtonStates[index];
-			if(index != 1)
+			if (index != 1)
 			{
 				BulbRenderer[index].material = ((ButtonStates[index]) ? BulbMaterials[(int)Bulbs[index].Color] : DefaultMaterial);
-			}
+                if (colorblindActive)
+                    ColorblindTexts[index].text = ((ButtonStates[index]) ? BulbMaterials[(int)Bulbs[index].Color].name[0].ToString().ToUpper() : "");
+            }
 			else
 			{
 				BulbRenderer[1].material = ((ButtonStates[index]) ? MiddleBulbMaterials[(int)Bulbs[1].Color - 8] : DefaultMaterial);
-			}
+                if (colorblindActive)
+                {
+                    if (ButtonStates[index])
+                    {
+                        if (MiddleBulbMaterials[(int)Bulbs[1].Color - 8].name.Equals("grey"))
+                            ColorblindTexts[index].text = "A";
+                        else
+                            ColorblindTexts[index].text = "W";
+                    }
+                    else
+                        ColorblindTexts[index].text = "";
+                }
+                    
+            }
 
-
-			Audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.BigButtonPress, transform);
+            Audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.BigButtonPress, Buttons[index].transform);
 		}
 	}
 	private Color GetColor(int color)
@@ -164,7 +183,12 @@ public class LightBulbsScript : MonoBehaviour
 	private void CheckAnswer()
 	{
 		var buttonValues = ConvertButtonToValue(ButtonStates);
-		if(string.Join("", CorrectAnswer.Select(x => x.ToString()).ToArray()) == string.Join("", buttonValues.Select(x => x.ToString()).ToArray()))
+        if (colorblindActive)
+        {
+            for (int i = 0; i < 3; i++)
+                ColorblindTexts[i].text = "";
+        }
+		if (string.Join("", CorrectAnswer.Select(x => x.ToString()).ToArray()) == string.Join("", buttonValues.Select(x => x.ToString()).ToArray()))
 		{
 			isSolved = true;
 			StartCoroutine(SolveAnimation(true));
@@ -194,7 +218,7 @@ public class LightBulbsScript : MonoBehaviour
 	private List<char> ConvertButtonToValue(bool[] buttons)
 	{
 		var newList = new List<char>();
-		for(int i = 0; i < 3; ++i)
+		for (int i = 0; i < 3; ++i)
 		{
 			newList.Add((buttons[i]) ? '0' : '-');
 		}
@@ -217,7 +241,7 @@ public class LightBulbsScript : MonoBehaviour
 			BulbRenderer[i].material = DefaultMaterial;
 		}
 		yield return new WaitForSecondsRealtime(1f);
-		for(int i = 0; i < 3; ++i)
+		for (int i = 0; i < 3; ++i)
 		{
 			BulbRenderer[i].material = MiddleBulbMaterials[1];
 			Audio.PlaySoundAtTransform(Sfx[0].name, transform);
@@ -225,14 +249,14 @@ public class LightBulbsScript : MonoBehaviour
 		}
 		if (IsSolved)
 		{
-			for(int i = 0; i < 3; ++i)
+			for (int i = 0; i < 3; ++i)
 			{
 				ButtonMeshFilters[i].mesh = null;
 			}
 			ButtonTexts[0].text = "G";
 			ButtonTexts[1].text = "G";
 			ButtonTexts[2].text = "!";
-			for(int i = 0; i < 3; ++i)
+			for (int i = 0; i < 3; ++i)
 			{
 				BulbRenderer[i].material = BulbMaterials[3];
 			}
@@ -254,32 +278,62 @@ public class LightBulbsScript : MonoBehaviour
 			}
 			Audio.PlaySoundAtTransform(Sfx[1].name, transform);
 			yield return new WaitForSecondsRealtime(1.75f);
-			Module.HandleStrike();
-			Reset();
+            Module.HandleStrike();
+            Reset();
 			interactable = true;
 		}	
 	}
 
 #pragma warning disable 414
-	private readonly string TwitchHelpMessage = "Cycle the bulbs by entering: !{0} cycle | Submit your answer by entering !{0} submit -o-";
+	private readonly string TwitchHelpMessage = "Cycle the bulbs by entering: !{0} cycle | Submit your answer by entering: !{0} submit -o- | Toggle colorblind mode by entering: !{0} colorblind";
 #pragma warning restore 414
 
 	public IEnumerator ProcessTwitchCommand(string command)
 	{
 		command = command.ToLowerInvariant().Trim();
 		Match m = TwitchPlaysRegex.Match(command);
-		if(command.Equals("cycle", StringComparison.InvariantCultureIgnoreCase))
+        if (command.Equals("colorblind", StringComparison.InvariantCultureIgnoreCase))
+        {
+            yield return null;
+            if (colorblindActive)
+            {
+                colorblindActive = false;
+                for (int i = 0; i < 3; i++)
+                    ColorblindTexts[i].text = "";
+            }
+            else
+            {
+                colorblindActive = true;
+                for (int i = 0; i < 3; i++)
+                {
+                    if (ButtonStates[i])
+                    {
+                        if (i != 1)
+                            ColorblindTexts[i].text = BulbMaterials[(int)Bulbs[i].Color].name[0].ToString().ToUpper();
+                        else
+                        {
+                            if (MiddleBulbMaterials[(int)Bulbs[1].Color - 8].name.Equals("grey"))
+                                ColorblindTexts[i].text = "A";
+                            else
+                                ColorblindTexts[i].text = "W";
+                        }
+                    }
+                }
+            }
+            yield break;
+        }
+        if (command.Equals("cycle", StringComparison.InvariantCultureIgnoreCase))
 		{
-			for(int i = 0; i < 3; ++i)
+			for (int i = 0; i < 3; ++i)
 			{
 				yield return new WaitForSecondsRealtime(1f);
-				HandlePress(i);
+                Buttons[i].OnInteract();
 				yield return new WaitForSecondsRealtime(1f);
 			}
 			for (int i = 0; i < 3; ++i)
 			{
-				HandlePress(i);
-				yield return new WaitForSecondsRealtime(.1f);
+                Buttons[i].OnInteract();
+                yield return new WaitForSecondsRealtime(.1f);
 			}
 			yield break;
 		}
@@ -287,27 +341,27 @@ public class LightBulbsScript : MonoBehaviour
 		{
 			yield return null;
 			var input = m.Groups[1].ToString().ToCharArray();
-			for(int i = 0; i < 3; ++i)
+			for (int i = 0; i < 3; ++i)
 			{
 				if (input[i].Equals('-'))
 				{
 					if (ButtonStates[i])
 					{
-						HandlePress(i);
-						yield return new WaitForSecondsRealtime(.1f);
+                        Buttons[i].OnInteract();
+                        yield return new WaitForSecondsRealtime(.1f);
 					}
 				}
 				else
 				{
 					if (!ButtonStates[i])
 					{
-						HandlePress(i);
-						yield return new WaitForSecondsRealtime(.1f);
+                        Buttons[i].OnInteract();
+                        yield return new WaitForSecondsRealtime(.1f);
 					}
 				}				
 			}
-			HandlePress(3);
-			if (isSolved)
+            Buttons[3].OnInteract();
+            if (isSolved)
 			{
 				yield return "solve";
 			}
@@ -319,4 +373,42 @@ public class LightBulbsScript : MonoBehaviour
 		}
 		yield break;
 	}
+
+    public IEnumerator TwitchHandleForcedSolve()
+    {
+        if (!isSolved)
+        {
+            if (!interactable)
+            {
+                StopAllCoroutines();
+                for (int i = 0; i < 3; ++i)
+                {
+                    ButtonMeshFilters[i].mesh = null;
+                }
+                ButtonTexts[0].text = "G";
+                ButtonTexts[1].text = "G";
+                ButtonTexts[2].text = "!";
+                for (int i = 0; i < 3; ++i)
+                {
+                    BulbRenderer[i].material = BulbMaterials[3];
+                }
+                Audio.PlaySoundAtTransform(Sfx[2].name, transform);
+                Module.HandlePass();
+            }
+            else
+            {
+                List<char> states = ConvertButtonToValue(ButtonStates);
+                for (int i = 0; i < 3; i++)
+                {
+                    if (states[i] != CorrectAnswer[i])
+                    {
+                        Buttons[i].OnInteract();
+                        yield return new WaitForSecondsRealtime(.1f);
+                    }
+                }
+                Buttons[3].OnInteract();
+            }
+        }
+        while (!interactable && ButtonTexts[2].text != "!") yield return true;
+    } 
 }
