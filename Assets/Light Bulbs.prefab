@@ -1019,6 +1019,7 @@ GameObject:
   - component: {fileID: 114963322606870116}
   - component: {fileID: 114731892562298510}
   - component: {fileID: 114941642329145890}
+  - component: {fileID: 114941857675734396}
   m_Layer: 0
   m_Name: Light Bulbs
   m_TagString: Untagged
@@ -3987,6 +3988,7 @@ MonoBehaviour:
   Audio: {fileID: 114744778481760372}
   Info: {fileID: 114817933349874938}
   Colorblind: {fileID: 114963322606870116}
+  RuleSeed: {fileID: 114941857675734396}
   ButtonMeshes:
   - {fileID: 4300000, guid: fd4a1c6ec9d72a14db77548fb05ec3ff, type: 3}
   - {fileID: 4300000, guid: 9df849f32995bf54a98f8bbb8fcb86bf, type: 3}
@@ -4029,6 +4031,18 @@ MonoBehaviour:
   - {fileID: 2100000, guid: 82832a201638c455bb8349637b52950f, type: 2}
   - {fileID: 2100000, guid: a086244c976384801b25627d5d4b7a92, type: 2}
   DefaultMaterial: {fileID: 2100000, guid: 42978569a07e9c9488743584d2bb1315, type: 2}
+--- !u!114 &114941857675734396
+MonoBehaviour:
+  m_ObjectHideFlags: 1
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 100100000}
+  m_GameObject: {fileID: 1991359787617870}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: adf69c2de51bd3c43bbd9bc22578ee08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _seed: 1
 --- !u!114 &114963322606870116
 MonoBehaviour:
   m_ObjectHideFlags: 1

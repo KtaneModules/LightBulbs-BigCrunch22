@@ -15,6 +15,7 @@ public class LightBulbsScript : MonoBehaviour
 	public KMAudio Audio;
 	public KMBombInfo Info;
     public KMColorblindMode Colorblind;
+	public KMRuleSeedable RuleSeed;
 
 	public Mesh[] ButtonMeshes;
 	public MeshFilter[] ButtonMeshFilters;
@@ -30,7 +31,7 @@ public class LightBulbsScript : MonoBehaviour
 
 	private List<Bulb> Bulbs = new List<Bulb>();
 
-	private readonly string[][] Table = new string[][]
+	private string[][] Table = new string[][]
 	{
 		new[]{"000", "00-", "0--", "00-", "000", "-0-", "000", "00-"},
 		new[]{"-00", "-0-", "0-0", "-0-", "-00", "000", "000", "0-0"},
@@ -41,7 +42,6 @@ public class LightBulbsScript : MonoBehaviour
 		new[]{"---", "-0-", "00-", "00-", "0-0", "--0", "--0", "0-0"},
 		new[]{"---", "--0", "000", "-0-", "--0", "---", "-0-", "00-"}
 	};
-
 	private bool[] ButtonStates = new bool[] { false, false, false };
 
 	private static int _moduleIdCounter = 1;
@@ -60,6 +60,25 @@ public class LightBulbsScript : MonoBehaviour
 		_moduleId = _moduleIdCounter++;
         if (Colorblind.ColorblindModeActive)
             colorblindActive = true;
+		string[] RuleseedTable = {"000", "00-", "0--", "00-", "000", "-0-", "000", "00-", "-00", "-0-", "0-0", "-0-", "-00", "000", "000", "0-0", "-0-", "0--", "---", "0--", "-00", "0--", "00-", "-00", "--0", "-00", "---", "-00", "0--", "-00", "0--", "0-0", "0-0", "00-", "000", "0--", "---", "0-0",  "0-0", "--0", "---", "--0", "---", "-00", "0--", "-0-", "000", "--0", "---", "-0-", "00-", "00-", "0-0", "--0", "--0", "0-0", "---", "--0", "000", "-0-", "--0", "---", "-0-", "00-"};
+		var RuleSeedRNG = RuleSeed.GetRNG();
+		Debug.LogFormat("[Light Bulbs #{0}] Table for Ruleseed Number {1}:", _moduleId, RuleSeedRNG.Seed.ToString());
+		if (RuleSeedRNG.Seed != 1)
+		{
+			RuleSeedRNG.ShuffleFisherYates(RuleseedTable);
+		}
+		string Log = "";
+		for (int x = 0; x < RuleseedTable.Length; x++)
+		{
+			Table[x/8][x%8] = RuleseedTable[x];
+			Log = Log + RuleseedTable[x] + (x%8 < 7 ? ", " : "");
+			if (x%8 == 7)
+			{
+				Debug.LogFormat("[Light Bulbs #{0}] {1}", _moduleId, Log);
+				Log = "";
+			}
+		}
+		Debug.LogFormat("[Light Bulbs #{0}] ----------------------------------------------------", _moduleId);
 		Init();
 		Module.OnActivate += Activate;		
 	}
@@ -223,12 +242,6 @@ public class LightBulbsScript : MonoBehaviour
 			newList.Add((buttons[i]) ? '0' : '-');
 		}
 		return newList;
-	}
-
-	// Update is called once per frame
-	void Update () 
-	{
-		
 	}
 
 	IEnumerator SolveAnimation(bool IsSolved)
